@@ -21,6 +21,7 @@
 #include "drake/examples/kuka_iiwa_arm/iiwa_common.h"
 #include "drake/lcmt_iiwa_command.hpp"
 #include "drake/lcmt_iiwa_status.hpp"
+#include "drake/lcmt_gps_cancel_plan.hpp"
 #include "drake/multibody/joints/floating_base_types.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_tree.h"
@@ -40,6 +41,8 @@ namespace {
 const char* const kLcmStatusChannel = "IIWA_STATUS";
 const char* const kLcmCommandChannel = "IIWA_COMMAND";
 const char* const kLcmPlanChannel = "COMMITTED_ROBOT_PLAN";
+const char* const kLcmCancelPlanChannel = "CANCEL_PLAN";
+
 const int kNumJoints = 7;
 
 typedef PiecewisePolynomial<double> PPType;
@@ -56,6 +59,8 @@ class RobotPlanRunner {
                     &RobotPlanRunner::HandleStatus, this);
     lcm_.subscribe(kLcmPlanChannel,
                     &RobotPlanRunner::HandlePlan, this);
+    lcm_.subscribe(kLcmCancelPlanChannel,
+                    &RobotPlanRunner::HandleCancelPlan, this);
   }
 
   void Run() {
@@ -97,7 +102,11 @@ class RobotPlanRunner {
           iiwa_command.joint_position[joint] = desired_next(joint);
         }
 
-        lcm_.publish(kLcmCommandChannel, &iiwa_command);
+        if (running_ == true) {
+          lcm_.publish(kLcmCommandChannel, &iiwa_command);
+          std::cout << "Publishing:" <<cur_time_us<< std::endl;
+
+        }
       }
     }
   }
@@ -106,6 +115,12 @@ class RobotPlanRunner {
   void HandleStatus(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
                     const lcmt_iiwa_status* status) {
     iiwa_status_ = *status;
+  }
+  void HandleCancelPlan(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
+                    const lcmt_iiwa_status* status) {
+    running_ = false;
+    std::cout << "Cancel plan received." << std::endl;
+
   }
 
   void HandlePlan(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
@@ -116,6 +131,7 @@ class RobotPlanRunner {
                 << std::endl;
       return;
     }
+    running_ = true;
 
     std::vector<Eigen::MatrixXd> knots(plan->num_states,
                                        Eigen::MatrixXd::Zero(kNumJoints, 1));
@@ -161,6 +177,7 @@ class RobotPlanRunner {
   int plan_number_{};
   std::unique_ptr<PiecewisePolynomialTrajectory> plan_;
   lcmt_iiwa_status iiwa_status_;
+  bool running_ = false;
 };
 
 int do_main(int argc, const char* argv[]) {

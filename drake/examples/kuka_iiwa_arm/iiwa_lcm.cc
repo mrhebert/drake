@@ -194,6 +194,8 @@ IiwaStatusSender::AllocateOutputAbstract(
   msg.joint_torque_measured.resize(msg.num_joints, 0);
   msg.joint_torque_commanded.resize(msg.num_joints, 0);
   msg.joint_torque_external.resize(msg.num_joints, 0);
+  msg.joint_velocity_estimated.resize(msg.num_joints, 0);
+
   return std::make_unique<systems::Value<lcmt_iiwa_status>>(msg);
 }
 

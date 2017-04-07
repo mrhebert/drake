@@ -1,0 +1,5 @@
+package drake;
+
+struct lcmt_gps_cancel_plan {
+  int32_t cancel;
+}

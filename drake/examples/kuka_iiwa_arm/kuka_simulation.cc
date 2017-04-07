@@ -62,6 +62,7 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   builder.AddVisualizer(&lcm);
 
+  std::cout << "HI " << std::endl;
   // Adds a iiwa controller
   VectorX<double> iiwa_kp, iiwa_kd, iiwa_ki;
   SetPositionControlledIiwaGains(&iiwa_kp, &iiwa_ki, &iiwa_kd);
@@ -70,21 +71,30 @@ int DoMain() {
           RigidBodyTreeConstants::kFirstNonWorldModelInstanceId,
           GetDrakePath() + kModelPath, nullptr, iiwa_kp, iiwa_ki, iiwa_kd,
           false /* without feedforward acceleration */);
+          std::cout << "HI " << std::endl;
 
   const RigidBodyTree<double>& tree = plant->get_rigid_body_tree();
   VerifyIiwaTree(tree);
+  std::cout << "HI " << std::endl;
 
   // Create the command subscriber and status publisher.
   systems::DiagramBuilder<double>* base_builder = builder.get_mutable_builder();
   auto command_sub = base_builder->AddSystem(
       systems::lcm::LcmSubscriberSystem::Make<lcmt_iiwa_command>(
           "IIWA_COMMAND", &lcm));
+          std::cout << "HI " << std::endl;
+
   auto command_receiver = base_builder->AddSystem<IiwaCommandReceiver>();
+  std::cout << "HI " << std::endl;
+
   auto status_pub = base_builder->AddSystem(
       systems::lcm::LcmPublisherSystem::Make<lcmt_iiwa_status>(
           "IIWA_STATUS", &lcm));
   status_pub->set_publish_period(kIiwaLcmStatusPeriod);
+  std::cout << "HI " << std::endl;
+
   auto status_sender = base_builder->AddSystem<IiwaStatusSender>();
+  std::cout << "HI " << std::endl;
 
   base_builder->Connect(command_sub->get_output_port(0),
                   command_receiver->get_input_port(0));
@@ -96,21 +106,30 @@ int DoMain() {
                   status_sender->get_command_input_port());
   base_builder->Connect(status_sender->get_output_port(0),
                   status_pub->get_input_port(0));
+                  std::cout << "HI " << std::endl;
+
   auto sys = builder.Build();
+  std::cout << "HI " << std::endl;
 
   Simulator<double> simulator(*sys);
+  std::cout << "HIhgerre " << std::endl;
 
   lcm.StartReceiveThread();
+  std::cout << "HIaaaaaaaasdasdasdasdasdasdasdaaa " << std::endl;
+
   simulator.Initialize();
+  std::cout << "HIaaaaaaaaaa " << std::endl;
 
   command_receiver->set_initial_position(
       sys->GetMutableSubsystemContext(simulator.get_mutable_context(),
                                       command_receiver),
       VectorX<double>::Zero(tree.get_num_positions()));
+      std::cout << "HI " << std::endl;
 
 
   // Simulate for a very long time.
   simulator.StepTo(FLAGS_simulation_sec);
+  std::cout << "HI " << std::endl;
 
   return 0;
 }

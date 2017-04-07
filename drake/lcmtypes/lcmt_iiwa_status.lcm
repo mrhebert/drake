@@ -14,4 +14,5 @@ struct lcmt_iiwa_status {
   double joint_torque_measured[num_joints];
   double joint_torque_commanded[num_joints];
   double joint_torque_external[num_joints];
+  double joint_velocity_estimated[num_joints];
 }
