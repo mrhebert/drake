@@ -113,20 +113,21 @@ const char* const EE_FRAME = "iiwa_link_ee";
           loop_time_start = get_time::now();
           compute_state(currentStep);
 
-          U_.row(currentStep) = (K_.at(currentStep) * (X_.row(currentStep)) + k_.row(currentStep)) ;
-          // std::cout << "U-----"  << U_.rows() <<","<< U_.cols() << " , " << K_.at(currentStep) * (X_.row(currentStep)) + k_.row(currentStep)<< std::endl;
+          U_.row(currentStep) = (K_.at(currentStep) * (X_.row(currentStep)) + k_.row(currentStep)).eval() ;
+          // std::cout << "Before Cap U-----"  << U_.row(currentStep)<< std::endl;
 
 
           for(int i = 0; i < kNumJoints_; i++) {
             U_(currentStep,i) += reset_position_(i);
             double delta = U_(currentStep,i) - X_(currentStep,i);
-
+            // std::cout << " DELTA " << delta << std::endl;
             if(delta > inputCap_) { delta = inputCap_;}
             if(delta < -inputCap_) { delta =  -inputCap_;}
 
             U_(currentStep,i) = X_(currentStep,i) + delta;
 
           }
+          // std::cout << "After Cap U-----"   << U_.row(currentStep) << std::endl;
 
 
           // if (currentStep == 5) {
@@ -140,24 +141,22 @@ const char* const EE_FRAME = "iiwa_link_ee";
             iiwa_command.joint_position[i] = U_(currentStep,i);
           }
 
-          std::cout << "X_-----"  << X_.row(currentStep) << std::endl;
-          std::cout << "U_-----"  << U_.row(currentStep) << std::endl;
-          std::cout << "reset_-----"  << reset_position_ << std::endl;
+          // std::cout << "X_-----"  << X_.row(currentStep).eval() << std::endl;
+          // std::cout << "U_-----"  << U_.row(currentStep).eval() << std::endl;
+          // std::cout << "reset_-----"  << reset_position_ << std::endl;
 
           chrono::steady_clock::time_point end = get_time::now();
           chrono::duration<double> time_span = chrono::duration_cast<chrono::duration<double>>(end - start);
 
           if (time_span.count() > dt_) {
-            std::cout << "dt: "  << time_span.count()  << " , " <<dt_ << " T_ " << T_ <<  std::endl;
-            currentStep++;
+            // std::cout << "dt: "  << time_span.count()  << " , " <<dt_ << " T_ " << T_ <<  std::endl;
+
             start = get_time::now();
-            // compute_obs(currentStep);
 
             iiwa_command.utime = iiwa_status_.utime;
-            std::cout << "U_-before----"  << U_.row(currentStep) << std::endl;
-
             lcm_.publish(kLcmCommandChannel, &iiwa_command);
-            std::cout << "U_-IN----"  << U_.row(currentStep) << std::endl;
+            compute_obs(currentStep);
+            currentStep++;
 
           }
 
@@ -178,7 +177,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
           case JOINT_ANGLES: {
               obs_idx_(i,0) = idx;
               for(int j = 0; j < kNumJoints_; j++) {
-                X_(t, idx) = iiwa_status_.joint_position_measured[j];
+                obs_(t, idx) = iiwa_status_.joint_position_measured[j];
                 obs_idx_(i,1) = idx;
                 idx++;
               }
@@ -187,7 +186,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
               obs_idx_(i,0) = idx;
               for(int j = 0; j < kNumJoints_; j++) {
                 if (t!=0) {
-                  X_(t, idx) = (iiwa_status_.joint_position_measured[j] - X_(t-1,idx)) / dt_;
+                  obs_(t, idx) = (iiwa_status_.joint_position_measured[j] - X_(t-1,idx)) / dt_;
                 }
                 obs_idx_(i,1) = idx;
                 idx++;
@@ -195,22 +194,25 @@ const char* const EE_FRAME = "iiwa_link_ee";
               break;
           } case END_EFFECTOR_POINTS: {
               obs_idx_(i,0) = idx;
-              VectorXd pos(kNumJoints_* 3);
-              VectorXd vel(kNumJoints_* 3);
+              VectorXd pos(kNumEEPoints_* 3);
+              VectorXd vel(kNumEEPoints_* 3);
               get_points_and_vels(pos,vel);
               for(int j = 0; j < pos.size(); j++) {
-                X_(t,idx) = pos(j);
+                obs_(t,idx) = pos(j);
                 obs_idx_(i,1) = idx;
                 idx++;
               }
+              std::cout << "POS " << pos.transpose() << std::endl;
+              std::cout << "OBS " << obs_.row(t) << std::endl;
+
               break;
           } case END_EFFECTOR_POINT_VELOCITIES: {
               obs_idx_(i,0) = idx;
-              VectorXd pos(kNumJoints_ * 3);
-              VectorXd vel(kNumJoints_* 3);
+              VectorXd pos(kNumEEPoints_ * 3);
+              VectorXd vel(kNumEEPoints_* 3);
               get_points_and_vels(pos,vel);
               for(int j = 0; j < vel.size(); j++) {
-                X_(t,idx) = vel(j);
+                obs_(t,idx) = vel(j);
                 obs_idx_(i,1) = idx;
                 idx++;
               }
@@ -220,6 +222,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
         }
     }
     void publish_sample(){
+      std::cout << "GENERATING SAMPLE TO PUBLISH!!!" << std::endl;
       lcmt_gps_sample_result res;
       res.trialID = controller_command_.trialID;
       res.num_data_types = controller_command_.obs_datatypes.size();
@@ -229,46 +232,59 @@ const char* const EE_FRAME = "iiwa_link_ee";
         lcmt_gps_data data;
         data.data_type = controller_command_.obs_datatypes.at(i);
         data.T = T_;
+        data.data_length = obs_idx_(i,1) - obs_idx_(i,0) + 1; //+1 because of 0 index
+
         for(int k = 0; k < T_; k++) {
+          data.data.push_back(std::vector<double>());
           for(int j = obs_idx_(i,0); j <= obs_idx_(i,1); j++){
             data.data.at(k).push_back(obs_(k,j));
+
+            if (data.data_type == END_EFFECTOR_POINTS) {
+              std::cout << obs_(k,j)<< std::endl;
+            }
           }
+          std::cout << "------" << std::endl;
         }
         res.data_samples.push_back(data);
       }
 
-      lcmt_gps_data data;
-      data.data_type = ACTION;
+      lcmt_gps_data action_data;
+      action_data.data_type = ACTION;
+      action_data.T = T_;
+      action_data.data_length = kNumJoints_;
       for(int k = 0; k < T_; k++) {
-        for(int j =0; j < kNumJoints_; k++) {
-            data.data.at(k).push_back(U_(k,j));
+        action_data.data.push_back(std::vector<double>());
+        for(int j =0; j < kNumJoints_; j++) {
+            action_data.data.at(k).push_back(U_(k,j));
         }
       }
-      res.data_samples.push_back(data);
+      std::cout <<"HI "<< obs_idx_ << std::endl;
+      res.data_samples.push_back(action_data);
 
-
-      for(unsigned int i = 0; i < controller_command_.state_datatypes.size(); i++) {
-        lcmt_gps_data data;
-        data.data_type = controller_command_.state_datatypes.at(i);
-
-        bool already_exists = false;
-        for(unsigned int a = 0; a < res.data_samples.size(); a++) {
-          if(res.data_samples.at(a).data_type == data.data_type){
-
-          }
-        }
-        if (already_exists) {
-          continue;
-        }
-
-        data.T = T_;
-        for(int k = 0; k < T_; k++) {
-          for(int j = state_idx_(i,0); j <= state_idx_(i,1); j++){
-            data.data.at(k).push_back(X_(k,j));
-          }
-        }
-        res.data_samples.push_back(data);
-      }
+      //
+      // for(unsigned int i = 0; i < controller_command_.state_datatypes.size(); i++) {
+      //   lcmt_gps_data data;
+      //   data.data_type = controller_command_.state_datatypes.at(i);
+      //
+      //   bool already_exists = false;
+      //   for(unsigned int a = 0; a < res.data_samples.size(); a++) {
+      //     if(res.data_samples.at(a).data_type == data.data_type){
+      //       already_exists = true;
+      //     }
+      //   }
+      //   if (already_exists) {
+      //     continue;
+      //   }
+      //
+      //   data.T = T_;
+      //   for(int k = 0; k < T_; k++) {
+      //     data.data.push_back(std::vector<double>());
+      //     for(int j = state_idx_(i,0); j <= state_idx_(i,1); j++){
+      //       data.data.at(k).push_back(X_(k,j));
+      //     }
+      //   }
+      //   res.data_samples.push_back(data);
+      // }
 
       lcm_.publish(kLcmControllerData, &res);
     }
@@ -333,7 +349,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
       MatrixXd ee_points(kNumEEPoints_,3);
 
       for(int i = 0; i < ee_point_offsets_.rows(); i++) {
-        ee_points.row(i) =((ee_rot * ee_point_offsets_.row(i).transpose()).transpose() + ee_pos.transpose());
+        ee_points.row(i) =((ee_rot * ee_point_offsets_.row(i).transpose()).transpose() + ee_pos.transpose()).eval();
         // std::cout << "-------------------" <<std::endl;
         // std::cout << "ee_rot  " << ee_rot << std::endl;
         // std::cout << "ee_point_offsets_  " << ee_point_offsets_.row(i).transpose() << std::endl;
@@ -356,10 +372,10 @@ const char* const EE_FRAME = "iiwa_link_ee";
           tree_.FindBodyIndex(BASE_FRAME),
           tree_.FindBodyIndex(EE_FRAME));
       auto rot_out = transform.rotation();
-      translation = transform.translation();
-      quat = drake::math::rotmat2quat(transform.linear());
+      translation = transform.translation().eval();
+      quat = drake::math::rotmat2quat(transform.linear()).eval();
 
-      rotation = rot_out.block(0,0,3,3); // grab oinly rotation
+      rotation = rot_out.block(0,0,3,3).eval(); // grab oinly rotation
       // for (int i = 0 ; i < kNumJoints_; i++) {
       //   std::cout << q(i) << " , ";
       // }
@@ -388,11 +404,11 @@ const char* const EE_FRAME = "iiwa_link_ee";
       MatrixXd pointsLast = get_ee_points_in_base_frame(posLast, rotLast);
       // std::cout << "POS NOW " << posNow << " P{OS LAST } " << posLast << std::endl;
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> vTmp = (pointsNow - pointsLast) / messageDt_;
-      velocities = Eigen::Map<VectorXd>(vTmp.transpose().data(), vTmp.rows()*vTmp.cols());
+      velocities = Eigen::Map<VectorXd>(vTmp.transpose().data(), vTmp.rows()*vTmp.cols()).eval();
       // std::cout << "vTmp " << vTmp << " pn " <<pointsNow << " pl " << pointsLast  << "VELOCITY " << velocities << " message dt " << messageDt_ <<std::endl;
 
       Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> pTmp = pointsNow - ee_targets_;
-      postions = Eigen::Map<VectorXd>(pTmp.transpose().data(), pTmp.rows()*pTmp.cols());
+      postions = Eigen::Map<VectorXd>(pTmp.transpose().data(), pTmp.rows()*pTmp.cols()).eval();
       // std::cout << "pppppppppTmp " << pTmp << " pn " <<postions  <<std::endl;
 
     }
@@ -406,10 +422,10 @@ const char* const EE_FRAME = "iiwa_link_ee";
       //
       // messageDt_ = (iiwa_status_.utime - iiwa_status_old_.utime) / 1e6;
       // std::cout << "DT " << messageDt_ << " now " << iiwa_status_.utime << " lasyt " << iiwa_status_old_.utime << std::endl;
-      for(int i = 0; i < kNumJoints_;i++ ) {
-        // X_(i) = iiwa_status_.joint_position_measured[i];
-        // X_(i+kNumJoints_) = iiwa_status_.joint_velocity_estimated[i];
-      }
+      // for(int i = 0; i < kNumJoints_;i++ ) {
+      //   // X_(i) = iiwa_status_.joint_position_measured[i];
+      //   // X_(i+kNumJoints_) = iiwa_status_.joint_velocity_estimated[i];
+      // }
       // std::cout  << X_ << " , " << iiwa_status_.joint_position_measured[0] <<  std::endl;
     }
     void HandleRun(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
@@ -475,6 +491,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
 
         std::cout << "--------------NEW PLAN ----------------" << std::endl;
         std::cout << "dt_ " << dt_ << std::endl;
+        std::cout << "input cap " << inputCap_ << std::endl;
         std::cout << "dU_ " << dU_ << std::endl;
         std::cout << "dX_ " << dX_ << std::endl;
         std::cout << "T_ " << T_ << std::endl;
@@ -523,7 +540,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
     int kNumJoints_ = 7;
     int kNumStates_ = 14;
     int kNumEEPoints_;
-    int inputCap_;
+    double inputCap_;
     int T_;
     int trialID_ = -1;
     lcmt_gps_trial_command controller_command_;

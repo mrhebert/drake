@@ -52,8 +52,8 @@ int DoMain() {
 
   // Adds a plant.
   RigidBodyPlant<double>* plant = nullptr;
-  const std::string kModelPath = "/manipulation/models/iiwa_description/urdf/"
-      "iiwa14_polytope_collision.urdf";
+  const std::string kModelPath = "/examples/kuka_iiwa_arm/urdf/"
+      "iiwa14_estimated_params.urdf";
   {
     auto tree = std::make_unique<RigidBodyTree<double>>();
     CreateTreedFromFixedModelAtPose(kModelPath, tree.get());
