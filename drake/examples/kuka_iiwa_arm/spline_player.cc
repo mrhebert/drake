@@ -92,6 +92,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
     }
 
     void runSpline() {
+      gotStatusupdate_ = false;
       while (0 == lcm_.handleTimeout(10)) { }
 
 
@@ -104,7 +105,10 @@ const char* const EE_FRAME = "iiwa_link_ee";
       double total_spline_time = 0;
 
       while(currentCommand < numCommands) {
-        while (0 == lcm_.handleTimeout(10)) { }
+        while (gotStatusupdate_ == false) {
+          lcm_.handle();
+        }
+        gotStatusupdate_ = false;
 
         dt = iiwa_status_.utime - start_time;
 
@@ -114,7 +118,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
           lcmt_iiwa_command iiwa_command;
           iiwa_command = spline_command_list_.at(currentCommand);
           for(int j = 0; j < 7; j++){
-            iiwa_command.joint_position.at(j) = iiwa_status_.at(j);
+            iiwa_command.joint_position.at(j) = iiwa_status_.joint_position_measured.at(j);
           }
           iiwa_command.utime = start_time;
           // for ( int i = 0; i < 7; i++) {
@@ -294,6 +298,8 @@ const char* const EE_FRAME = "iiwa_link_ee";
          }
 
          double diff = (goal_pos - curr).squaredNorm();
+         cout << "DIFF: " << diff << endl;
+
          if(diff < epsilon) {
            currently_resetting = false;
          }
@@ -321,7 +327,6 @@ const char* const EE_FRAME = "iiwa_link_ee";
          }
 
          double diff = (goal_pos - curr).squaredNorm();
-         cout << "DIFF: " << diff << endl;
          if(diff < epsilon) {
            currently_resetting = false;
          }
@@ -358,6 +363,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
     void HandleStatus(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
                       const lcmt_iiwa_status* status) {
       iiwa_status_ = *status;
+      gotStatusupdate_= true;
     }
     void HandleCommand(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
                       const lcmt_iiwa_command* command) {
@@ -388,7 +394,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
     lcm::LCM lcm_;
     int kNumJoints_ = 7;
     const RigidBodyTree<double>& tree_;
-
+    bool gotStatusupdate_;
   };
 
 

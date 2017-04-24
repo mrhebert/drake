@@ -79,6 +79,7 @@ lcm_wrap_types(
   lcmt_gps_trial_command.lcm
   lcmt_gps_sample_result.lcm
   lcmt_gps_cancel_plan.lcm
+  lcmt_robot_controller_reference.lcm
 )
 
 lcm_add_library(drake_lcmtypes C ${c_sources} ${c_install_headers})

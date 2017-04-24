@@ -62,7 +62,7 @@ int DoMain() {
   // Creates and adds LCM publisher for visualization.
   builder.AddVisualizer(&lcm);
 
-  std::cout << "HI " << std::endl;
+  // std::cout << "HI " << std::endl;
   // Adds a iiwa controller
   VectorX<double> iiwa_kp, iiwa_kd, iiwa_ki;
   SetPositionControlledIiwaGains(&iiwa_kp, &iiwa_ki, &iiwa_kd);
@@ -71,7 +71,7 @@ int DoMain() {
           RigidBodyTreeConstants::kFirstNonWorldModelInstanceId,
           GetDrakePath() + kModelPath, nullptr, iiwa_kp, iiwa_ki, iiwa_kd,
           false /* without feedforward acceleration */);
-          std::cout << "HI " << std::endl;
+          // std::cout << "HI " << std::endl;
 
   const RigidBodyTree<double>& tree = plant->get_rigid_body_tree();
   VerifyIiwaTree(tree);

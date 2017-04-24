@@ -118,13 +118,13 @@ const char* const EE_FRAME = "iiwa_link_ee";
 
 
           for(int i = 0; i < kNumJoints_; i++) {
-            U_(currentStep,i) += reset_position_(i);
-            double delta = U_(currentStep,i) - X_(currentStep,i);
-            // std::cout << " DELTA " << delta << std::endl;
-            if(delta > inputCap_) { delta = inputCap_;}
-            if(delta < -inputCap_) { delta =  -inputCap_;}
-
-            U_(currentStep,i) = X_(currentStep,i) + delta;
+            // U_(currentStep,i) += reset_position_(i);
+            // double delta = U_(currentStep,i) - X_(currentStep,i);
+            // // std::cout << " DELTA " << delta << std::endl;
+            // if(delta > inputCap_) { delta = inputCap_;}
+            // if(delta < -inputCap_) { delta =  -inputCap_;}
+            //
+            // U_(currentStep,i) = X_(currentStep,i) + delta;
 
           }
           // std::cout << "After Cap U-----"   << U_.row(currentStep) << std::endl;
@@ -138,7 +138,8 @@ const char* const EE_FRAME = "iiwa_link_ee";
           //
 
           for (int i = 0 ; i < kNumJoints_; i++) {
-            iiwa_command.joint_position[i] = U_(currentStep,i);
+            iiwa_command.joint_torque[i] = U_(currentStep,i);
+            iiwa_command.joint_position[i] = iiwa_status_.joint_position_measured[i];
           }
 
           // std::cout << "X_-----"  << X_.row(currentStep).eval() << std::endl;
@@ -238,12 +239,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
           data.data.push_back(std::vector<double>());
           for(int j = obs_idx_(i,0); j <= obs_idx_(i,1); j++){
             data.data.at(k).push_back(obs_(k,j));
-
-            if (data.data_type == END_EFFECTOR_POINTS) {
-              std::cout << obs_(k,j)<< std::endl;
-            }
           }
-          std::cout << "------" << std::endl;
         }
         res.data_samples.push_back(data);
       }
@@ -258,7 +254,6 @@ const char* const EE_FRAME = "iiwa_link_ee";
             action_data.data.at(k).push_back(U_(k,j));
         }
       }
-      std::cout <<"HI "<< obs_idx_ << std::endl;
       res.data_samples.push_back(action_data);
 
       //
