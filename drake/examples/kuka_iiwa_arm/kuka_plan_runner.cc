@@ -52,6 +52,7 @@ typedef PPType::PolynomialMatrix PPMatrix;
 class RobotPlanRunner {
  public:
   /// tree is aliased
+  bool run_ = false;
   explicit RobotPlanRunner(const RigidBodyTree<double>& tree)
       : tree_(tree), plan_number_(0) {
     VerifyIiwaTree(tree);
