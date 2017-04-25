@@ -73,7 +73,7 @@ const char* const kLcmStatusChannel = "IIWA_STATUS";
 const char* const kLcmRunControllerChannel = "GPS_RUN_CONTROLLER";
 const char* const kLcmControllerData = "GPS_DATA_RESULT";
 const char* const kLcmCommandChannel = "IIWA_COMMAND";
-const char* const kLcmFFCommandChannel = "IIWA_FEED_FORWARD_COMMAND";
+const char* const kLcmTorqueCommandChannel = "IIWA_TORQUE_CHANNEL";
 const char* const kLcmCancelPlanChannel = "CANCEL_PLAN";
 
 const char* const kURDF = "IIWA_COMMAND";
@@ -90,7 +90,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
         : tree_(tree) {
       lcm_.subscribe(kLcmStatusChannel, &RobotController::HandleStatus, this);
       lcm_.subscribe(kLcmCommandChannel, &RobotController::HandleCommand, this);
-      lcm_.subscribe(kLcmFFCommandChannel, &RobotController::HandleFeedForwardCommand, this);
+      lcm_.subscribe(kLcmTorqueCommandChannel, &RobotController::HandleTorqueCommand, this);
     }
 
     void runSpline() {
@@ -129,7 +129,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
           lcm_.publish(kLcmCommandChannel, &iiwa_command);
           status_list_.push_back(iiwa_status_);
           command_list_.push_back(iiwa_command);
-
+          torque_command_list_.push_back(iiwa_torque_command_);
 
           vector<double> list;
           list.clear();
@@ -169,11 +169,14 @@ const char* const EE_FRAME = "iiwa_link_ee";
       }
       send_reset(curr);
 
-      write_command_to_file(command_list_ , "/home/momap/TorqueReplayData/command_list_.csv");
-      write_command_to_file(spline_command_list_ , "/home/momap/TorqueReplayData/spline_command_list_.csv");
-      write_status_to_file(spline_status_list_ , "/home/momap/TorqueReplayData/spline_status_list_.csv");
-      write_status_to_file(status_list_ , "/home/momap/TorqueReplayData/status_list_.csv");
-      write_time_to_file(time_list_ , "/home/momap/TorqueReplayData/timing_list_.csv");
+
+      write_command_to_file(command_list_ , "/home/mhebert/TorqueReplayData/command_list_.csv");
+      write_command_to_file(spline_command_list_ , "/home/mhebert/TorqueReplayData/spline_command_list_.csv");
+      write_command_to_file(torque_command_list_ , "/home/mhebert/TorqueReplayData/torque_command_list_.csv");
+      write_command_to_file(spline_torque_command_list_ , "/home/mhebert/TorqueReplayData/spline_torque_command_list_.csv");
+      write_status_to_file(spline_status_list_ , "/home/mhebert/TorqueReplayData/spline_status_list_.csv");
+      write_status_to_file(status_list_ , "/home/mhebert/TorqueReplayData/status_list_.csv");
+      write_time_to_file(time_list_ , "/home/mhebert/TorqueReplayData/timing_list_.csv");
 
     }
 
@@ -327,7 +330,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
          if(spline_command_list_.size() == 0 || spline_command_list_.back().utime != iiwa_command_.utime ) {
            spline_status_list_.push_back(iiwa_status_);
            spline_command_list_.push_back(iiwa_command_);
-           spline_ff_command_list_.push_back(iiwa_feedforward_command_);
+           spline_torque_command_list_.push_back(iiwa_torque_command_);
          }
 
          VectorXd curr(7);
@@ -367,7 +370,6 @@ const char* const EE_FRAME = "iiwa_link_ee";
 
        lcm_.publish(kLcmCancelPlanChannel, &iiwa_status_);
 
-
        runSpline();
        cout << "END OF METHOD!!! "  << endl;
      }
@@ -384,28 +386,26 @@ const char* const EE_FRAME = "iiwa_link_ee";
     void HandleCommand(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
                       const lcmt_iiwa_command* command) {
       iiwa_command_ = *command;
-      // for ( int i = 0; i < 7; i++) {
-      //   cout << "GOT ONE" << iiwa_command_.joint_torque.at(i) << endl;
-      // }
     }
-    void HandleFeedForwardCommand(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
+    void HandleTorqueCommand(const lcm::ReceiveBuffer* rbuf, const std::string& chan,
                       const lcmt_iiwa_command* command) {
-      iiwa_feedforward_command_ = *command;
+      iiwa_torque_command_ = *command;
     }
 
 
     vector<lcmt_iiwa_status> spline_status_list_;
     vector<lcmt_iiwa_command> spline_command_list_;
-    vector<lcmt_iiwa_command> spline_ff_command_list_;
+    vector<lcmt_iiwa_command> spline_torque_command_list_;
     vector<vector<double>> time_list_;
 
     vector<lcmt_iiwa_status> status_list_;
     vector<lcmt_iiwa_command> command_list_;
+    vector<lcmt_iiwa_command> torque_command_list_;
 
 
     lcmt_iiwa_status iiwa_status_;
     lcmt_iiwa_command iiwa_command_;
-    lcmt_iiwa_command iiwa_feedforward_command_;
+    lcmt_iiwa_command iiwa_torque_command_;
 
     lcm::LCM lcm_;
     int kNumJoints_ = 7;
