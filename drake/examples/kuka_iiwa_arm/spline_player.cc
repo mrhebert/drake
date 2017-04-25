@@ -29,6 +29,8 @@
 using namespace std;
 using ns = chrono::nanoseconds;
 using get_time = chrono::steady_clock;
+using namespace std::this_thread;
+using namespace std::chrono;
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
@@ -110,7 +112,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
         }
         gotStatusupdate_ = false;
 
-        dt = iiwa_status_.utime - start_time;
+        dt = (iiwa_status_.utime - start_time);
 
         // cout << "DT " << dt << " desired_dt " << desired_dt << " " << numCommands << " " << currentCommand<< endl;
         if (dt > desired_dt) {
@@ -160,11 +162,18 @@ const char* const EE_FRAME = "iiwa_link_ee";
         }
       }
 
-      write_command_to_file(command_list_ , "/home/mhebert/TorqueReplayData/command_list_.csv");
-      write_command_to_file(spline_command_list_ , "/home/mhebert/TorqueReplayData/spline_command_list_.csv");
-      write_status_to_file(spline_status_list_ , "/home/mhebert/TorqueReplayData/spline_status_list_.csv");
-      write_status_to_file(status_list_ , "/home/mhebert/TorqueReplayData/status_list_.csv");
-      write_time_to_file(time_list_ , "/home/mhebert/TorqueReplayData/timing_list_.csv");
+      VectorXd curr(7);
+
+      for(int j = 0; j < 7; j++){
+        curr(j) = iiwa_status_.joint_position_measured.at(j);
+      }
+      send_reset(curr);
+
+      write_command_to_file(command_list_ , "/home/momap/TorqueReplayData/command_list_.csv");
+      write_command_to_file(spline_command_list_ , "/home/momap/TorqueReplayData/spline_command_list_.csv");
+      write_status_to_file(spline_status_list_ , "/home/momap/TorqueReplayData/spline_status_list_.csv");
+      write_status_to_file(status_list_ , "/home/momap/TorqueReplayData/status_list_.csv");
+      write_time_to_file(time_list_ , "/home/momap/TorqueReplayData/timing_list_.csv");
 
     }
 
@@ -288,7 +297,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
 
      void wait_for_convergance(Eigen::Ref<VectorXd> goal_pos){
        bool currently_resetting = true;
-       double epsilon = 0.02;
+       double epsilon = 0.03;
        while (currently_resetting == true) {
          lcm_.handle();
 
@@ -309,7 +318,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
 
      void record_spline(Eigen::Ref<VectorXd> goal_pos){
        bool currently_resetting = true;
-       double epsilon = 0.001;
+       double epsilon = 0.03;
        while (currently_resetting == true) {
          lcm_.handle();
 
@@ -329,6 +338,7 @@ const char* const EE_FRAME = "iiwa_link_ee";
          double diff = (goal_pos - curr).squaredNorm();
          if(diff < epsilon) {
            currently_resetting = false;
+           break;
          }
        }
      }
@@ -339,16 +349,22 @@ const char* const EE_FRAME = "iiwa_link_ee";
        Eigen::VectorXd init_pos(7);
 
        for(int i = 0; i < 7; i++) {
-         goal(i) = 0.5;
+         goal(i) = 0.4;
          init_pos(i) = 0.0;
        }
 
        send_reset(init_pos);
        wait_for_convergance(init_pos);
+
+      // sleep_until(system_clock::now() + seconds(1.0));
+
        send_reset(goal);
        record_spline(goal);
+
+
        send_reset(init_pos);
        wait_for_convergance(init_pos);
+
        lcm_.publish(kLcmCancelPlanChannel, &iiwa_status_);
 
 
