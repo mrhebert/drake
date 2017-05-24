@@ -21,6 +21,11 @@ static const int kNumJoints = 7;
 // cabinet.
 const double kIiwaLcmStatusPeriod = 0.005;
 
+bool previous_status_valid_ = true;
+lcmt_iiwa_status previous_iiwa_status_;
+
+
+
 IiwaCommandReceiver::IiwaCommandReceiver() {
   this->DeclareAbstractInputPort();
   this->DeclareOutputPort(systems::kVectorValued, kNumJoints * 2);
@@ -195,6 +200,18 @@ IiwaStatusSender::AllocateOutputAbstract(
   msg.joint_torque_commanded.resize(msg.num_joints, 0);
   msg.joint_torque_external.resize(msg.num_joints, 0);
   msg.joint_velocity_estimated.resize(msg.num_joints, 0);
+  msg.joint_acceleration_estimated.resize(msg.num_joints, 0);
+
+  previous_iiwa_status_.num_joints = kNumJoints;
+  previous_iiwa_status_.joint_position_measured.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_position_commanded.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_position_ipo.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_torque_measured.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_torque_commanded.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_torque_external.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_velocity_estimated.resize(msg.num_joints, 0);
+  previous_iiwa_status_.joint_acceleration_estimated.resize(msg.num_joints, 0);
+
 
   return std::make_unique<systems::Value<lcmt_iiwa_status>>(msg);
 }
@@ -213,7 +230,18 @@ void IiwaStatusSender::DoCalcOutput(
   for (int i = 0; i < kNumJoints; ++i) {
     status.joint_position_measured[i] = state->GetAtIndex(i);
     status.joint_position_commanded[i] = command->GetAtIndex(i);
-  }
+
+    if (previous_status_valid_) {
+     double dt = (status.utime - previous_iiwa_status_.utime) / 1e6;
+     if (dt != 0.0) {
+       status.joint_velocity_estimated[i] = (status.joint_position_measured[i] - previous_iiwa_status_.joint_position_measured[i]) / dt;
+     }
+   }
+ }
+
+ previous_status_valid_ = true;
+ previous_iiwa_status_ = status;
+
 }
 
 
